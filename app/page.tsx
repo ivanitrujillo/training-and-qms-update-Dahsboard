@@ -1,7 +1,7 @@
 "use client"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import ExcelImport from "../excel-import"
 import Dashboard from "../components/dashboard"
+import ExcelImport from "../excel-import"
 import { Upload, BarChart3 } from "lucide-react"
 
 export default function SyntheticV0PageForDeployment() {
