@@ -1,203 +1,221 @@
-# Personal Development Bot - Training & QMS Dashboard
+# Training & QMS Dashboard
 
-A comprehensive training management and quality management system (QMS) dashboard built with Next.js, featuring Excel import, email notifications, and database integration.
+A comprehensive training management and quality management system (QMS) dashboard built with Next.js, featuring Excel import functionality, email notifications, and database integration.
 
 ## 🚀 Features
 
-- **📊 Interactive Dashboard** - Real-time analytics and visualizations
-- **👥 Employee Management** - Complete employee directory with training tracking
-- **📚 Training Management** - Assignment tracking, progress monitoring, and email reminders
-- **📋 QMS Planning** - 4-year strategic planning with quarterly breakdown
-- **📤 Excel Import** - Drag & drop Excel file processing with auto-detection
-- **📧 Email Notifications** - Individual and bulk training reminders
-- **🗄️ Database Integration** - Supports Neon, PostgreSQL, and local storage
-- **📱 Responsive Design** - Works on desktop, tablet, and mobile
+### 📊 Dashboard
+- **Real-time Statistics** - Employee count, training completion rates, overdue assignments
+- **Interactive Charts** - Training progress, status distribution, department overview
+- **Four-Year QMS Timeline** - Strategic planning view for 2025-2028
+- **Responsive Design** - Works on desktop, tablet, and mobile
+
+### 📤 Excel Import System
+- **Drag & Drop Upload** - Easy file upload with progress tracking
+- **Multiple File Types** - Support for .xlsx, .xls, and .csv files
+- **Auto-Detection** - Automatically detects employees, training assignments, and QMS data
+- **Template Downloads** - Pre-formatted templates with sample data
+- **Error Handling** - Detailed error reporting and validation
+
+### 📧 Email Notifications
+- **Individual Reminders** - Send training reminders to specific employees
+- **Bulk Notifications** - Send reminders to multiple employees at once
+- **Demo Mode** - Test functionality without email service
+- **Custom Templates** - Professional email templates with branding
+
+### 🗄️ Database Integration
+- **Neon PostgreSQL** - Cloud database with automatic scaling
+- **Sample Data Fallback** - Works without database configuration
+- **Real-time Updates** - Dashboard refreshes after data imports
+- **Data Validation** - Ensures data integrity and relationships
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **UI Components**: shadcn/ui, Recharts for visualizations
-- **Database**: Neon PostgreSQL (optional), with fallback to local storage
-- **Email**: Resend API for email notifications
-- **File Processing**: XLSX library for Excel parsing
+- **Frontend**: Next.js 14, React, TypeScript
+- **UI Components**: shadcn/ui, Tailwind CSS
+- **Charts**: Recharts
+- **Database**: Neon PostgreSQL
+- **Email**: Resend API
+- **File Processing**: SheetJS (xlsx)
 - **Deployment**: Vercel
 
 ## 🚀 Quick Start
 
-### 1. Deploy to Vercel
+### 1. Deploy to Vercel (Recommended)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/personal-development-bot)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
 
-### 2. Environment Variables (Optional)
+1. Click the deploy button above
+2. Connect your GitHub account
+3. Deploy automatically
+4. Your app will be available at `https://your-app-name.vercel.app`
 
-Add these environment variables in Vercel dashboard for full functionality:
-
-\`\`\`env
-# Database (Optional - uses sample data if not configured)
-DATABASE_URL=postgresql://username:password@host:port/database
-
-# Email Service (Optional - uses demo mode if not configured)
-RESEND_API_KEY=re_your_resend_api_key
-
-# Site URL (Auto-configured by Vercel)
-NEXT_PUBLIC_SITE_URL=https://your-app-name.vercel.app
-\`\`\`
-
-### 3. Local Development
+### 2. Local Development
 
 \`\`\`bash
 # Clone the repository
-git clone https://github.com/your-username/personal-development-bot
-cd personal-development-bot
+git clone <your-repo-url>
+cd training-qms-dashboard
 
 # Install dependencies
 npm install
 
 # Run development server
 npm run dev
+
+# Open http://localhost:3000
 \`\`\`
 
-## 📋 Usage
+## ⚙️ Configuration
 
-### 1. Import Data
-- Go to the "Import Data" tab
-- Download templates or use the drag & drop area
-- Upload Excel files with employee, training, or QMS data
-- Files are auto-detected based on filename or content
+### Environment Variables (Optional)
 
-### 2. View Dashboard
-- Monitor training completion rates and overdue assignments
-- View department-wise analytics and progress charts
-- Track QMS plans across multiple years
+Create a `.env.local` file in the root directory:
 
-### 3. Manage Training
-- Filter employees and training assignments
-- Send individual or bulk email reminders
-- Track completion status and priorities
+\`\`\`env
+# Database (Optional - uses sample data if not set)
+DATABASE_URL=postgresql://username:password@host:port/database
 
-### 4. QMS Planning
-- View 4-year strategic timeline (2025-2028)
-- Filter by year and quarter
-- Track progress on quality initiatives
+# Email Service (Optional - uses demo mode if not set)
+RESEND_API_KEY=re_your_resend_api_key
 
-## 🗄️ Database Setup (Optional)
+# Site URL (for email links)
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+\`\`\`
 
-### Neon Database (Recommended)
-1. Create account at [neon.tech](https://neon.tech)
-2. Create new project
-3. Copy connection string
-4. Add as `DATABASE_URL` environment variable
-5. Database tables are created automatically
+### Database Setup (Optional)
 
-### Local PostgreSQL
-1. Install PostgreSQL locally
-2. Create new database
-3. Set `DATABASE_URL` environment variable
-4. Run the provided SQL scripts
+1. **Create Neon Account**: Go to [neon.tech](https://neon.tech) and create a free account
+2. **Create Database**: Create a new PostgreSQL database
+3. **Get Connection String**: Copy the connection string from Neon dashboard
+4. **Set Environment Variable**: Add `DATABASE_URL` to your environment variables
+5. **Run Setup Scripts**: The app will automatically create tables on first run
 
-## 📧 Email Configuration (Optional)
+### Email Setup (Optional)
 
-### Resend API
-1. Create account at [resend.com](https://resend.com)
-2. Get API key from dashboard
-3. Add as `RESEND_API_KEY` environment variable
-4. System automatically switches to live email sending
+1. **Create Resend Account**: Go to [resend.com](https://resend.com) and create a free account
+2. **Get API Key**: Generate an API key from the Resend dashboard
+3. **Set Environment Variable**: Add `RESEND_API_KEY` to your environment variables
+4. **Configure Domain**: Set up your sending domain in Resend (optional)
 
-## 📁 File Structure
+## 📁 Project Structure
 
 \`\`\`
 ├── app/                    # Next.js app directory
+│   ├── layout.tsx         # Root layout
+│   └── page.tsx           # Home page
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
 │   ├── dashboard.tsx     # Main dashboard
 │   ├── excel-import.tsx  # File import functionality
-│   └── employee-training-view.tsx
+│   └── employee-training-view.tsx # Training management
 ├── lib/                  # Utility libraries
-│   └── database.ts       # Database operations
+│   ├── database.ts       # Database operations
+│   └── excel-parser.ts   # Excel file parsing
 ├── actions/              # Server actions
 │   └── email-actions.ts  # Email functionality
-├── scripts/              # Database scripts
-└── excel-parser.ts       # Excel file processing
+└── scripts/              # Database scripts
+    ├── 01-create-tables.sql
+    └── 02-seed-sample-data.sql
 \`\`\`
 
-## 🎯 Key Features
+## 📊 Data Import
 
-### Excel Import
-- **Auto-Detection**: Files detected by name or content
-- **Multiple Formats**: Supports .xlsx and .xls files
-- **Batch Processing**: Upload multiple files at once
-- **Error Handling**: Detailed error messages and recovery
-- **Templates**: Download CSV templates with sample data
+### Supported File Types
+- **Excel Files**: .xlsx, .xls
+- **CSV Files**: .csv
+- **Multiple Files**: Upload multiple files at once
 
-### Email System
-- **Demo Mode**: Works without configuration (logs to console)
-- **Live Mode**: Real emails via Resend API
-- **Bulk Operations**: Send to multiple employees
-- **Custom Messages**: Personalized email content
-- **HTML Templates**: Professional email formatting
+### Data Types
+1. **Employees**: Basic employee information
+2. **Training Assignments**: Course assignments with due dates
+3. **QMS Updates**: Quality management system plans
 
-### Database Integration
-- **Flexible**: Works with or without database
-- **Auto-Migration**: Tables created automatically
-- **Sample Data**: Fallback data when no database
-- **Real-time**: Live data updates and refresh
+### Template Downloads
+The app provides CSV templates with sample data for each data type. Download these templates to ensure proper formatting.
+
+## 🎯 Usage
+
+### 1. Dashboard Overview
+- View key metrics and statistics
+- Monitor training completion rates
+- Track overdue assignments
+- Analyze department performance
+
+### 2. Employee Training Management
+- View all training assignments
+- Filter by status, department, priority
+- Send individual or bulk reminders
+- Track completion progress
+
+### 3. Four-Year QMS Timeline
+- Plan QMS updates for 2025-2028
+- Filter by year and quarter
+- Track project status and progress
+- Manage strategic initiatives
+
+### 4. Data Import
+- Upload Excel/CSV files
+- Download templates with sample data
+- View import results and errors
+- Automatic dashboard refresh
 
 ## 🔧 Customization
 
-### Adding New Data Types
-1. Create parser function in `excel-parser.ts`
-2. Add database operations in `lib/database.ts`
-3. Update import component in `components/excel-import.tsx`
-4. Add visualization in dashboard
+### Branding
+- Update colors in `tailwind.config.ts`
+- Modify email templates in `actions/email-actions.ts`
+- Change app title in `app/layout.tsx`
+
+### Data Schema
+- Modify database schema in `scripts/01-create-tables.sql`
+- Update parsing logic in `lib/excel-parser.ts`
+- Adjust UI components as needed
 
 ### Email Templates
-- Modify templates in `actions/email-actions.ts`
-- Add new email types and triggers
-- Customize HTML styling and content
+- Customize email content in `actions/email-actions.ts`
+- Add company branding and logos
+- Modify sender information
 
-### Dashboard Widgets
-- Add new charts in `components/dashboard.tsx`
-- Create custom visualizations with Recharts
-- Add filtering and interactive features
+## 🚨 Troubleshooting
 
-## 📊 Sample Data
+### Common Issues
 
-The application includes comprehensive sample data:
-- **10 Employees** across different departments
-- **Multiple Training Assignments** with various statuses
-- **16 QMS Plans** spanning 2025-2028
-- **Realistic Due Dates** for testing overdue detection
+1. **Database Connection Failed**
+   - Check DATABASE_URL format
+   - Ensure database is accessible
+   - Verify credentials
 
-## 🚀 Deployment
+2. **Email Not Sending**
+   - Check RESEND_API_KEY is valid
+   - Verify domain configuration
+   - Check email addresses are valid
 
-### Vercel (Recommended)
-1. Connect GitHub repository to Vercel
-2. Configure environment variables
-3. Deploy automatically on push
+3. **File Import Errors**
+   - Use provided templates
+   - Check column headers match exactly
+   - Ensure date formats are correct
 
-### Other Platforms
-- **Netlify**: Configure build settings
-- **Railway**: Add environment variables
-- **Self-hosted**: Use Docker or PM2
+4. **Build Errors**
+   - Run `npm install` to update dependencies
+   - Check TypeScript errors
+   - Verify all imports are correct
+
+### Getting Help
+
+1. Check the browser console for errors
+2. Review the import results tab for detailed error messages
+3. Ensure all environment variables are set correctly
+4. Try using sample data first to verify functionality
+
+## 📝 License
+
+This project is open source and available under the [MIT License](LICENSE).
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
+## 📞 Support
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation**: Check this README and inline comments
-- **Issues**: Open GitHub issue for bugs or feature requests
-- **Email**: Contact support for deployment help
-
----
-
-Built with ❤️ using Next.js, shadcn/ui, and modern web technologies.
+For support and questions, please open an issue in the GitHub repository.

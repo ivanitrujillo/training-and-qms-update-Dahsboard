@@ -1,19 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { User, Search, Filter, Mail, Clock, CheckCircle, AlertTriangle, Calendar, Send, Users } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { Search, Filter, Mail, Calendar, Clock, AlertTriangle, CheckCircle, User, BookOpen, Send } from "lucide-react"
 import { sendTrainingReminder, sendBulkTrainingReminders } from "../actions/email-actions"
+import { useToast } from "@/hooks/use-toast"
 
 interface Employee {
   id: string
@@ -46,243 +43,249 @@ interface EmployeeTrainingViewProps {
 
 export function EmployeeTrainingView({ employees, trainingAssignments }: EmployeeTrainingViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedEmployee, setSelectedEmployee] = useState<string>("all")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [departmentFilter, setDepartmentFilter] = useState("all")
+  const [priorityFilter, setPriorityFilter] = useState("all")
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([])
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
-  const [bulkEmailDialogOpen, setBulkEmailDialogOpen] = useState(false)
-  const [emailMessage, setEmailMessage] = useState("")
-  const [currentAssignment, setCurrentAssignment] = useState<TrainingAssignment | null>(null)
-  const [isSending, setIsSending] = useState(false)
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
   const { toast } = useToast()
 
-  // Filter assignments based on search and filters
-  const filteredAssignments = trainingAssignments.filter((assignment) => {
-    const matchesSearch =
-      assignment.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.employee_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.course_title?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Get unique departments
+  const departments = useMemo(() => {
+    const depts = [...new Set(employees.map((emp) => emp.department))]
+    return depts.sort()
+  }, [employees])
 
-    const matchesEmployee = selectedEmployee === "all" || assignment.employee_id === selectedEmployee
-    const matchesStatus = statusFilter === "all" || assignment.status === statusFilter
+  // Filter and search training assignments
+  const filteredAssignments = useMemo(() => {
+    return trainingAssignments.filter((assignment) => {
+      const employee = employees.find((emp) => emp.id === assignment.employee_id)
+      if (!employee) return false
 
-    return matchesSearch && matchesEmployee && matchesStatus
-  })
+      const matchesSearch =
+        employee.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employee.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        assignment.course_title.toLowerCase().includes(searchTerm.toLowerCase())
 
-  // Calculate employee statistics
-  const getEmployeeStats = (employeeId: string) => {
-    const employeeAssignments = trainingAssignments.filter((a) => a.employee_id === employeeId)
-    const completed = employeeAssignments.filter((a) => a.status === "completed").length
-    const total = employeeAssignments.length
-    const overdue = employeeAssignments.filter((a) => {
-      const dueDate = new Date(a.due_date)
+      const matchesStatus = statusFilter === "all" || assignment.status === statusFilter
+      const matchesDepartment = departmentFilter === "all" || employee.department === departmentFilter
+      const matchesPriority = priorityFilter === "all" || assignment.priority === priorityFilter
+
+      return matchesSearch && matchesStatus && matchesDepartment && matchesPriority
+    })
+  }, [trainingAssignments, employees, searchTerm, statusFilter, departmentFilter, priorityFilter])
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const total = filteredAssignments.length
+    const completed = filteredAssignments.filter((a) => a.status === "completed").length
+    const inProgress = filteredAssignments.filter((a) => a.status === "in_progress").length
+    const assigned = filteredAssignments.filter((a) => a.status === "assigned").length
+    const overdue = filteredAssignments.filter((a) => {
       const today = new Date()
+      const dueDate = new Date(a.due_date)
       return dueDate < today && a.status !== "completed"
     }).length
 
-    return { completed, total, overdue, completionRate: total > 0 ? Math.round((completed / total) * 100) : 0 }
-  }
+    return { total, completed, inProgress, assigned, overdue }
+  }, [filteredAssignments])
 
-  // Get status badge variant and label
-  const getStatusInfo = (assignment: TrainingAssignment) => {
-    const dueDate = new Date(assignment.due_date)
-    const today = new Date()
-    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (assignment.status === "completed") {
-      return { variant: "default" as const, label: "Completed", icon: CheckCircle, color: "text-green-600" }
-    } else if (dueDate < today) {
-      return { variant: "destructive" as const, label: "Overdue", icon: AlertTriangle, color: "text-red-600" }
-    } else if (daysUntilDue <= 7) {
-      return { variant: "secondary" as const, label: "Due Soon", icon: Clock, color: "text-orange-600" }
-    } else if (assignment.status === "in_progress") {
-      return { variant: "secondary" as const, label: "In Progress", icon: Clock, color: "text-blue-600" }
-    } else {
-      return { variant: "outline" as const, label: "Assigned", icon: Calendar, color: "text-gray-600" }
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800"
+      case "in_progress":
+        return "bg-blue-100 text-blue-800"
+      case "assigned":
+        return "bg-yellow-100 text-yellow-800"
+      case "overdue":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
     }
   }
 
-  // Handle individual email
-  const handleSendEmail = async (assignment: TrainingAssignment) => {
-    setCurrentAssignment(assignment)
-    setEmailMessage(`Hi ${assignment.employee_name?.split(" ")[0] || "there"},
-
-This is a friendly reminder about your upcoming training:
-
-Course: ${assignment.course_title}
-Due Date: ${new Date(assignment.due_date).toLocaleDateString()}
-Priority: ${assignment.priority}
-
-Please complete this training by the due date. If you have any questions, please don't hesitate to reach out.
-
-Best regards,
-Training Team`)
-    setEmailDialogOpen(true)
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "critical":
+        return "bg-red-100 text-red-800"
+      case "high":
+        return "bg-orange-100 text-orange-800"
+      case "medium":
+        return "bg-yellow-100 text-yellow-800"
+      case "low":
+        return "bg-green-100 text-green-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
   }
 
-  // Handle bulk email
-  const handleBulkEmail = () => {
+  const isOverdue = (dueDate: string, status: string) => {
+    const today = new Date()
+    const due = new Date(dueDate)
+    return due < today && status !== "completed"
+  }
+
+  const handleSendReminder = async (assignment: TrainingAssignment) => {
+    const employee = employees.find((emp) => emp.id === assignment.employee_id)
+    if (!employee) return
+
+    setIsSendingEmail(true)
+    try {
+      const result = await sendTrainingReminder({
+        employeeName: `${employee.first_name} ${employee.last_name}`,
+        employeeEmail: employee.email,
+        courseTitle: assignment.course_title,
+        dueDate: assignment.due_date,
+        priority: assignment.priority,
+      })
+
+      if (result.success) {
+        toast({
+          title: "Reminder Sent",
+          description: `Training reminder sent to ${employee.first_name} ${employee.last_name}`,
+        })
+      } else {
+        toast({
+          title: "Failed to Send",
+          description: result.error || "Failed to send reminder",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send reminder",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const handleBulkReminders = async () => {
     if (selectedAssignments.length === 0) {
       toast({
-        title: "No Assignments Selected",
-        description: "Please select at least one training assignment to send reminders.",
+        title: "No Selection",
+        description: "Please select training assignments to send reminders for",
         variant: "destructive",
       })
       return
     }
 
-    setEmailMessage(`Hi there,
-
-This is a reminder about your pending training assignments. Please review and complete the following:
-
-${selectedAssignments
-  .map((id) => {
-    const assignment = trainingAssignments.find((a) => a.id === id)
-    return assignment ? `• ${assignment.course_title} (Due: ${new Date(assignment.due_date).toLocaleDateString()})` : ""
-  })
-  .filter(Boolean)
-  .join("\n")}
-
-Please complete these trainings by their respective due dates. If you have any questions, please don't hesitate to reach out.
-
-Best regards,
-Training Team`)
-    setBulkEmailDialogOpen(true)
-  }
-
-  // Send individual email
-  const sendIndividualEmail = async () => {
-    if (!currentAssignment) return
-
-    setIsSending(true)
+    setIsSendingEmail(true)
     try {
-      const result = await sendTrainingReminder({
-        employeeEmail: currentAssignment.employee_email,
-        employeeName: currentAssignment.employee_name || "Employee",
-        courseTitle: currentAssignment.course_title,
-        dueDate: currentAssignment.due_date,
-        customMessage: emailMessage,
-      })
+      const reminders = selectedAssignments
+        .map((assignmentId) => {
+          const assignment = trainingAssignments.find((a) => a.id === assignmentId)
+          const employee = employees.find((emp) => emp.id === assignment?.employee_id)
+
+          if (!assignment || !employee) return null
+
+          return {
+            employeeName: `${employee.first_name} ${employee.last_name}`,
+            employeeEmail: employee.email,
+            courseTitle: assignment.course_title,
+            dueDate: assignment.due_date,
+            priority: assignment.priority,
+          }
+        })
+        .filter(Boolean) as any[]
+
+      const result = await sendBulkTrainingReminders(reminders)
 
       if (result.success) {
         toast({
-          title: "Email Sent",
-          description: `Training reminder sent to ${currentAssignment.employee_name}`,
+          title: "Reminders Sent",
+          description: `Sent ${reminders.length} training reminders`,
         })
-        setEmailDialogOpen(false)
-        setCurrentAssignment(null)
-        setEmailMessage("")
-      } else {
-        throw new Error(result.error || "Failed to send email")
-      }
-    } catch (error) {
-      toast({
-        title: "Email Failed",
-        description: `Failed to send email: ${error}`,
-        variant: "destructive",
-      })
-    } finally {
-      setIsSending(false)
-    }
-  }
-
-  // Send bulk emails
-  const sendBulkEmails = async () => {
-    setIsSending(true)
-    try {
-      const assignments = selectedAssignments
-        .map((id) => trainingAssignments.find((a) => a.id === id))
-        .filter(Boolean) as TrainingAssignment[]
-
-      const result = await sendBulkTrainingReminders({
-        assignments: assignments.map((a) => ({
-          employeeEmail: a.employee_email,
-          employeeName: a.employee_name || "Employee",
-          courseTitle: a.course_title,
-          dueDate: a.due_date,
-        })),
-        customMessage: emailMessage,
-      })
-
-      if (result.success) {
-        toast({
-          title: "Bulk Emails Sent",
-          description: `Training reminders sent to ${assignments.length} employees`,
-        })
-        setBulkEmailDialogOpen(false)
         setSelectedAssignments([])
-        setEmailMessage("")
       } else {
-        throw new Error(result.error || "Failed to send bulk emails")
+        toast({
+          title: "Failed to Send",
+          description: result.error || "Failed to send bulk reminders",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       toast({
-        title: "Bulk Email Failed",
-        description: `Failed to send bulk emails: ${error}`,
+        title: "Error",
+        description: "Failed to send bulk reminders",
         variant: "destructive",
       })
     } finally {
-      setIsSending(false)
+      setIsSendingEmail(false)
     }
   }
 
-  // Handle assignment selection
-  const handleAssignmentSelect = (assignmentId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedAssignments([...selectedAssignments, assignmentId])
-    } else {
-      setSelectedAssignments(selectedAssignments.filter((id) => id !== assignmentId))
-    }
+  const toggleAssignmentSelection = (assignmentId: string) => {
+    setSelectedAssignments((prev) =>
+      prev.includes(assignmentId) ? prev.filter((id) => id !== assignmentId) : [...prev, assignmentId],
+    )
   }
 
-  // Select all filtered assignments
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedAssignments(filteredAssignments.map((a) => a.id))
-    } else {
+  const toggleSelectAll = () => {
+    if (selectedAssignments.length === filteredAssignments.length) {
       setSelectedAssignments([])
+    } else {
+      setSelectedAssignments(filteredAssignments.map((a) => a.id))
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Employee Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {employees.slice(0, 4).map((employee) => {
-          const stats = getEmployeeStats(employee.id)
-          return (
-            <Card key={employee.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <User className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate">
-                      {employee.first_name} {employee.last_name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground truncate">{employee.department}</p>
-                  </div>
-                </div>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Completion Rate</span>
-                    <span className="font-medium">{stats.completionRate}%</span>
-                  </div>
-                  <Progress value={stats.completionRate} className="h-2" />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
+          </CardContent>
+        </Card>
 
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>
-                      {stats.completed}/{stats.total} completed
-                    </span>
-                    {stats.overdue > 0 && <span className="text-red-600">{stats.overdue} overdue</span>}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+            <Clock className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Assigned</CardTitle>
+            <Calendar className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.assigned}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters and Search */}
@@ -290,40 +293,24 @@ Training Team`)
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filter Training Assignments
+            Filters & Search
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by employee name, email, or course..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search employees or courses..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
 
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Select employee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
-                {employees.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id}>
-                    {employee.first_name} {employee.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Filter by status" />
+              <SelectTrigger>
+                <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
@@ -333,217 +320,156 @@ Training Team`)
                 <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              onClick={handleBulkReminders}
+              disabled={selectedAssignments.length === 0 || isSendingEmail}
+              className="w-full"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send Reminders ({selectedAssignments.length})
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Bulk Actions */}
-      {selectedAssignments.length > 0 && (
-        <Alert>
-          <Users className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>{selectedAssignments.length} assignments selected</span>
-            <Button onClick={handleBulkEmail} size="sm" className="ml-4">
-              <Mail className="h-4 w-4 mr-2" />
-              Send Bulk Reminders
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Training Assignments */}
+      {/* Training Assignments Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Training Assignments ({filteredAssignments.length})</span>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedAssignments.length === filteredAssignments.length && filteredAssignments.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
-              <span className="text-sm text-muted-foreground">Select All</span>
+          <div className="flex items-center justify-between">
+            <CardTitle>Training Assignments</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredAssignments.length} of {trainingAssignments.length} assignments
             </div>
-          </CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           {filteredAssignments.length === 0 ? (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Training Assignments Found</h3>
-              <p className="text-muted-foreground">
-                {searchTerm || selectedEmployee !== "all" || statusFilter !== "all"
-                  ? "Try adjusting your filters to see more results."
-                  : "No training assignments have been uploaded yet."}
-              </p>
-            </div>
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>No training assignments found matching your filters.</AlertDescription>
+            </Alert>
           ) : (
-            <div className="space-y-4">
-              {filteredAssignments.map((assignment) => {
-                const statusInfo = getStatusInfo(assignment)
-                const StatusIcon = statusInfo.icon
-
-                return (
-                  <div key={assignment.id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
-                    <div className="flex items-start gap-4">
-                      <Checkbox
-                        checked={selectedAssignments.includes(assignment.id)}
-                        onCheckedChange={(checked) => handleAssignmentSelect(assignment.id, checked as boolean)}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssignments.length === filteredAssignments.length}
+                        onChange={toggleSelectAll}
+                        className="rounded"
                       />
+                    </TableHead>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Course</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAssignments.map((assignment) => {
+                    const employee = employees.find((emp) => emp.id === assignment.employee_id)
+                    if (!employee) return null
 
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-semibold">{assignment.course_title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {assignment.employee_name} • {assignment.employee_email}
-                            </p>
-                          </div>
+                    const overdue = isOverdue(assignment.due_date, assignment.status)
 
+                    return (
+                      <TableRow key={assignment.id} className={overdue ? "bg-red-50" : ""}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedAssignments.includes(assignment.id)}
+                            onChange={() => toggleAssignmentSelection(assignment.id)}
+                            className="rounded"
+                          />
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-2">
-                            <Badge variant={statusInfo.variant} className="flex items-center gap-1">
-                              <StatusIcon className="h-3 w-3" />
-                              {statusInfo.label}
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className={`capitalize ${
-                                assignment.priority === "critical"
-                                  ? "border-red-500 text-red-700"
-                                  : assignment.priority === "high"
-                                    ? "border-orange-500 text-orange-700"
-                                    : assignment.priority === "medium"
-                                      ? "border-yellow-500 text-yellow-700"
-                                      : "border-green-500 text-green-700"
-                              }`}
-                            >
-                              {assignment.priority}
-                            </Badge>
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="font-medium">
+                                {employee.first_name} {employee.last_name}
+                              </div>
+                              <div className="text-sm text-muted-foreground">{employee.email}</div>
+                            </div>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        </TableCell>
+                        <TableCell>
                           <div>
-                            <span className="text-muted-foreground">Assigned:</span>
-                            <p className="font-medium">{new Date(assignment.assigned_date).toLocaleDateString()}</p>
+                            <div className="font-medium">{assignment.course_title}</div>
+                            {assignment.category && (
+                              <div className="text-sm text-muted-foreground">{assignment.category}</div>
+                            )}
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">Due Date:</span>
-                            <p className="font-medium">{new Date(assignment.due_date).toLocaleDateString()}</p>
+                        </TableCell>
+                        <TableCell>{employee.department}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(assignment.status)}>
+                            {assignment.status.replace("_", " ")}
+                          </Badge>
+                          {overdue && <Badge className="ml-1 bg-red-100 text-red-800">Overdue</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getPriorityColor(assignment.priority)}>{assignment.priority}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            {new Date(assignment.due_date).toLocaleDateString()}
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">Department:</span>
-                            <p className="font-medium">
-                              {employees.find((e) => e.id === assignment.employee_id)?.department || "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Category:</span>
-                            <p className="font-medium">{assignment.category || "General"}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end">
+                        </TableCell>
+                        <TableCell>
                           <Button
-                            onClick={() => handleSendEmail(assignment)}
                             size="sm"
                             variant="outline"
-                            className="flex items-center gap-2"
+                            onClick={() => handleSendReminder(assignment)}
+                            disabled={isSendingEmail}
                           >
-                            <Mail className="h-4 w-4" />
-                            Send Reminder
+                            <Mail className="h-4 w-4 mr-1" />
+                            Remind
                           </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Individual Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Send Training Reminder</DialogTitle>
-            <DialogDescription>
-              Send a personalized reminder to {currentAssignment?.employee_name} about their training assignment.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Email Message</label>
-              <Textarea
-                value={emailMessage}
-                onChange={(e) => setEmailMessage(e.target.value)}
-                rows={8}
-                className="mt-1"
-                placeholder="Enter your custom message..."
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={sendIndividualEmail} disabled={isSending}>
-                {isSending ? (
-                  <>Sending...</>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Email
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Email Dialog */}
-      <Dialog open={bulkEmailDialogOpen} onOpenChange={setBulkEmailDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Send Bulk Training Reminders</DialogTitle>
-            <DialogDescription>
-              Send reminders to {selectedAssignments.length} selected employees about their training assignments.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Email Message</label>
-              <Textarea
-                value={emailMessage}
-                onChange={(e) => setEmailMessage(e.target.value)}
-                rows={8}
-                className="mt-1"
-                placeholder="Enter your custom message..."
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setBulkEmailDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={sendBulkEmails} disabled={isSending}>
-                {isSending ? (
-                  <>Sending...</>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send {selectedAssignments.length} Emails
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
