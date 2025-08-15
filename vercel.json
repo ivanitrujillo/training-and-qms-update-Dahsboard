@@ -9,6 +9,12 @@
     }
   },
   "env": {
-    "NEXT_PUBLIC_SITE_URL": "https://your-app-name.vercel.app"
+    "NEXT_PUBLIC_SITE_URL": "@next_public_site_url"
+  },
+  "build": {
+    "env": {
+      "DATABASE_URL": "@database_url",
+      "RESEND_API_KEY": "@resend_api_key"
+    }
   }
 }

@@ -1,175 +1,310 @@
 import { neon } from "@neondatabase/serverless"
 
 // Check if Neon is configured
-export const isNeonConfigured = typeof process.env.DATABASE_URL === "string" && process.env.DATABASE_URL.length > 0
+export const isNeonConfigured = !!process.env.DATABASE_URL
 
-// Create Neon client or mock client
-export const sql = isNeonConfigured ? neon(process.env.DATABASE_URL!) : null
+// Initialize Neon client if configured
+const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
-// Mock database functions for when no database is configured
-const mockDatabase = {
-  employees: [] as any[],
-  training_courses: [] as any[],
-  training_assignments: [] as any[],
-  qms_update_plans: [] as any[],
-}
-
-// Database operations
 export const db = {
   // Employee operations
   async getEmployees() {
-    if (!sql) return { data: mockDatabase.employees, error: null }
+    if (!sql) {
+      return {
+        data: [
+          {
+            id: "1",
+            email: "demo@company.com",
+            first_name: "Demo",
+            last_name: "User",
+            department: "IT",
+            position: "Developer",
+            hire_date: "2023-01-01",
+            created_at: new Date().toISOString(),
+          },
+        ],
+        error: null,
+      }
+    }
 
     try {
-      const result = await sql`SELECT * FROM employees ORDER BY created_at DESC`
-      return { data: result, error: null }
+      const employees = await sql`
+        SELECT id, email, first_name, last_name, department, position, hire_date, created_at
+        FROM employees
+        WHERE is_active = true
+        ORDER BY created_at DESC
+      `
+      return { data: employees, error: null }
     } catch (error) {
-      return { data: null, error: error }
+      console.error("Error fetching employees:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to fetch employees" }
     }
   },
 
   async insertEmployees(employees: any[]) {
     if (!sql) {
-      mockDatabase.employees.push(...employees)
       return { data: employees, error: null }
     }
 
     try {
-      const values = employees
-        .map(
-          (emp) =>
-            `('${emp.email}', '${emp.first_name}', '${emp.last_name}', '${emp.department}', '${emp.position}', ${emp.hire_date ? `'${emp.hire_date}'` : "NULL"})`,
-        )
-        .join(", ")
-
-      const result = await sql`
-        INSERT INTO employees (email, first_name, last_name, department, position, hire_date)
-        VALUES ${sql.unsafe(values)}
-        ON CONFLICT (email) DO UPDATE SET
-          first_name = EXCLUDED.first_name,
-          last_name = EXCLUDED.last_name,
-          department = EXCLUDED.department,
-          position = EXCLUDED.position,
-          hire_date = EXCLUDED.hire_date,
-          updated_at = NOW()
-        RETURNING *
-      `
-      return { data: result, error: null }
+      const results = []
+      for (const employee of employees) {
+        const result = await sql`
+          INSERT INTO employees (email, first_name, last_name, department, position, hire_date)
+          VALUES (${employee.email}, ${employee.first_name}, ${employee.last_name}, 
+                  ${employee.department}, ${employee.position}, ${employee.hire_date})
+          ON CONFLICT (email) DO UPDATE SET
+            first_name = EXCLUDED.first_name,
+            last_name = EXCLUDED.last_name,
+            department = EXCLUDED.department,
+            position = EXCLUDED.position,
+            hire_date = EXCLUDED.hire_date,
+            updated_at = NOW()
+          RETURNING *
+        `
+        results.push(result[0])
+      }
+      return { data: results, error: null }
     } catch (error) {
-      return { data: null, error: error }
+      console.error("Error inserting employees:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to insert employees" }
     }
   },
 
   // Training course operations
   async getTrainingCourses() {
-    if (!sql) return { data: mockDatabase.training_courses, error: null }
+    if (!sql) {
+      return {
+        data: [
+          {
+            id: "1",
+            title: "Demo Course",
+            description: "Sample training course",
+            duration_hours: 2,
+            category: "General",
+            is_mandatory: true,
+            created_at: new Date().toISOString(),
+          },
+        ],
+        error: null,
+      }
+    }
 
     try {
-      const result = await sql`SELECT * FROM training_courses ORDER BY title`
-      return { data: result, error: null }
+      const courses = await sql`
+        SELECT * FROM training_courses
+        ORDER BY created_at DESC
+      `
+      return { data: courses, error: null }
     } catch (error) {
-      return { data: null, error: error }
+      console.error("Error fetching training courses:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to fetch training courses" }
     }
   },
 
-  // Training assignment operations
+  async getTrainingAssignments() {
+    if (!sql) {
+      return {
+        data: [
+          {
+            id: "1",
+            employee_email: "demo@company.com",
+            first_name: "Demo",
+            last_name: "User",
+            course_title: "Demo Course",
+            assigned_date: "2024-01-01",
+            due_date: "2024-02-01",
+            status: "assigned",
+            priority: "medium",
+            duration_hours: 2,
+            created_at: new Date().toISOString(),
+          },
+        ],
+        error: null,
+      }
+    }
+
+    try {
+      const assignments = await sql`
+        SELECT ta.*, e.first_name, e.last_name, e.email as employee_email,
+               tc.title as course_title, tc.duration_hours
+        FROM training_assignments ta
+        JOIN employees e ON ta.employee_id = e.id
+        JOIN training_courses tc ON ta.course_id = tc.id
+        WHERE e.is_active = true
+        ORDER BY ta.created_at DESC
+      `
+      return { data: assignments, error: null }
+    } catch (error) {
+      console.error("Error fetching training assignments:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to fetch training assignments" }
+    }
+  },
+
   async insertTrainingAssignments(assignments: any[]) {
     if (!sql) {
-      mockDatabase.training_assignments.push(...assignments)
       return { data: assignments, error: null }
     }
 
     try {
-      // First get employee and course mappings
-      const employees = await sql`SELECT id, email FROM employees`
-      const courses = await sql`SELECT id, title FROM training_courses`
+      const results = []
+      for (const assignment of assignments) {
+        // First, find the employee
+        const employee = await sql`
+          SELECT id FROM employees WHERE email = ${assignment.employeeEmail} AND is_active = true
+        `
 
-      const employeeMap = new Map(employees.map((emp: any) => [emp.email, emp.id]))
-      const courseMap = new Map(courses.map((course: any) => [course.title, course.id]))
+        if (employee.length === 0) {
+          console.warn(`Employee not found: ${assignment.employeeEmail}`)
+          continue
+        }
 
-      const validAssignments = assignments
-        .filter((assignment) => employeeMap.has(assignment.employeeEmail) && courseMap.has(assignment.courseTitle))
-        .map((assignment) => ({
-          employee_id: employeeMap.get(assignment.employeeEmail),
-          course_id: courseMap.get(assignment.courseTitle),
-          assigned_date: assignment.assignedDate,
-          due_date: assignment.dueDate,
-          priority: assignment.priority || "medium",
-          status: "assigned",
-        }))
+        // Find or create the training course
+        let course = await sql`
+          SELECT id FROM training_courses WHERE title = ${assignment.courseTitle}
+        `
 
-      if (validAssignments.length === 0) {
-        return { data: [], error: "No valid assignments found" }
+        if (course.length === 0) {
+          course = await sql`
+            INSERT INTO training_courses (title, description, duration_hours, category)
+            VALUES (${assignment.courseTitle}, ${assignment.description || ""}, ${assignment.duration || 1}, ${assignment.category || "General"})
+            RETURNING id
+          `
+        }
+
+        // Insert the assignment
+        const result = await sql`
+          INSERT INTO training_assignments (employee_id, course_id, assigned_date, due_date, status, priority)
+          VALUES (${employee[0].id}, ${course[0].id}, ${assignment.assignedDate}, 
+                  ${assignment.dueDate}, 'assigned', ${assignment.priority || "medium"})
+          ON CONFLICT (employee_id, course_id) DO UPDATE SET
+            assigned_date = EXCLUDED.assigned_date,
+            due_date = EXCLUDED.due_date,
+            priority = EXCLUDED.priority,
+            updated_at = NOW()
+          RETURNING *
+        `
+        results.push(result[0])
       }
-
-      const values = validAssignments
-        .map(
-          (assignment) =>
-            `('${assignment.employee_id}', '${assignment.course_id}', '${assignment.assigned_date}', '${assignment.due_date}', '${assignment.priority}', '${assignment.status}')`,
-        )
-        .join(", ")
-
-      const result = await sql`
-        INSERT INTO training_assignments (employee_id, course_id, assigned_date, due_date, priority, status)
-        VALUES ${sql.unsafe(values)}
-        ON CONFLICT (employee_id, course_id, assigned_date) DO UPDATE SET
-          due_date = EXCLUDED.due_date,
-          priority = EXCLUDED.priority,
-          updated_at = NOW()
-        RETURNING *
-      `
-      return { data: result, error: null }
+      return { data: results, error: null }
     } catch (error) {
-      return { data: null, error: error }
+      console.error("Error inserting training assignments:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to insert training assignments" }
     }
   },
 
   // QMS operations
+  async getQMSUpdates() {
+    if (!sql) {
+      return {
+        data: [
+          {
+            id: "1",
+            title: "Demo QMS Update",
+            description: "Sample QMS update plan",
+            category: "Process Improvement",
+            planned_start_date: "2025-01-01",
+            planned_end_date: "2025-03-31",
+            status: "planned",
+            priority: "medium",
+            year: 2025,
+            quarter: 1,
+            progress: 0,
+            responsible_person_email: "demo@company.com",
+            first_name: "Demo",
+            last_name: "User",
+            created_at: new Date().toISOString(),
+          },
+        ],
+        error: null,
+      }
+    }
+
+    try {
+      const updates = await sql`
+        SELECT qu.*, e.first_name, e.last_name, e.email as responsible_person_email
+        FROM qms_updates qu
+        LEFT JOIN employees e ON qu.responsible_person_id = e.id
+        ORDER BY qu.planned_start_date DESC
+      `
+      return { data: updates, error: null }
+    } catch (error) {
+      console.error("Error fetching QMS updates:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to fetch QMS updates" }
+    }
+  },
+
   async insertQMSUpdates(updates: any[]) {
     if (!sql) {
-      mockDatabase.qms_update_plans.push(...updates)
       return { data: updates, error: null }
     }
 
     try {
-      // Get employee mappings
-      const employees = await sql`SELECT id, email FROM employees`
-      const employeeMap = new Map(employees.map((emp: any) => [emp.email, emp.id]))
+      const results = []
+      for (const update of updates) {
+        // Find the responsible person
+        let responsiblePersonId = null
+        if (update.responsiblePersonEmail) {
+          const employee = await sql`
+            SELECT id FROM employees WHERE email = ${update.responsiblePersonEmail} AND is_active = true
+          `
+          responsiblePersonId = employee.length > 0 ? employee[0].id : null
+        }
 
-      const validUpdates = updates
-        .filter((update) => employeeMap.has(update.responsiblePersonEmail))
-        .map((update) => ({
-          title: update.title,
-          description: update.description || "",
-          category: update.category,
-          planned_start_date: update.plannedStartDate,
-          planned_end_date: update.plannedEndDate,
-          responsible_person_id: employeeMap.get(update.responsiblePersonEmail),
-          year: update.year,
-          quarter: update.quarter,
-          priority: update.priority || "medium",
-          status: "planned",
-        }))
-
-      if (validUpdates.length === 0) {
-        return { data: [], error: "No valid QMS updates found" }
+        const result = await sql`
+          INSERT INTO qms_updates (title, description, category, planned_start_date, planned_end_date, 
+                                   responsible_person_id, status, priority, year, quarter)
+          VALUES (${update.title}, ${update.description || ""}, ${update.category}, 
+                  ${update.plannedStartDate}, ${update.plannedEndDate}, ${responsiblePersonId},
+                  'planned', ${update.priority || "medium"}, ${update.year}, ${update.quarter || null})
+          RETURNING *
+        `
+        results.push(result[0])
       }
-
-      const values = validUpdates
-        .map(
-          (update) =>
-            `('${update.title}', '${update.description}', '${update.category}', '${update.planned_start_date}', '${update.planned_end_date}', '${update.responsible_person_id}', ${update.year}, ${update.quarter || "NULL"}, '${update.priority}', '${update.status}')`,
-        )
-        .join(", ")
-
-      const result = await sql`
-        INSERT INTO qms_update_plans (title, description, category, planned_start_date, planned_end_date, responsible_person_id, year, quarter, priority, status)
-        VALUES ${sql.unsafe(values)}
-        RETURNING *
-      `
-      return { data: result, error: null }
+      return { data: results, error: null }
     } catch (error) {
-      return { data: null, error: error }
+      console.error("Error inserting QMS updates:", error)
+      return { data: [], error: error instanceof Error ? error.message : "Failed to insert QMS updates" }
+    }
+  },
+
+  // Dashboard statistics
+  async getDashboardStats() {
+    if (!sql) {
+      return {
+        data: {
+          totalEmployees: 1,
+          totalTrainingAssignments: 1,
+          completedTraining: 0,
+          overdueTraining: 0,
+          totalQMSUpdates: 1,
+          completedQMS: 0,
+          inProgressQMS: 0,
+        },
+        error: null,
+      }
+    }
+
+    try {
+      const [stats] = await sql`
+        SELECT * FROM dashboard_stats
+      `
+
+      return {
+        data: {
+          totalEmployees: Number.parseInt(stats.total_employees),
+          totalTrainingAssignments: Number.parseInt(stats.total_training_assignments),
+          completedTraining: Number.parseInt(stats.completed_training),
+          overdueTraining: Number.parseInt(stats.overdue_training),
+          totalQMSUpdates: Number.parseInt(stats.total_qms_updates),
+          completedQMS: Number.parseInt(stats.completed_qms),
+          inProgressQMS: Number.parseInt(stats.in_progress_qms),
+        },
+        error: null,
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error)
+      return { data: null, error: error instanceof Error ? error.message : "Failed to fetch dashboard stats" }
     }
   },
 }
